@@ -25,6 +25,10 @@ at http://mozilla.org/MPL/2.0/.
 #include <fstream>
 #include <sstream>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 using namespace v8unpack;
 
@@ -100,8 +104,8 @@ protected:
 int usage(vector<string> &)
 {
 	cout << endl;
-	cout << "v8unpack " << V8P_VERSION << " (" << V8P_BUILD_SIGNATURE << ")"
-		 << " Copyright (c) " << V8P_RIGHT << endl;
+	cout << "v8unpack " << V8P_VERSION << " (" << V8P_BUILD_SIGNATURE << ")" << endl;
+	cout << endl << "Copyright:" << V8P_RIGHT << endl;
 
 	cout << endl;
 	cout << "Parse and build 1C v8 containers (*.cf, *.epf, *.erf)" << endl;
@@ -429,6 +433,9 @@ void read_param_file(const char *filename, vector< vector<string> > &list)
 
 int main(int argc, char* argv[])
 {
+#ifdef _WIN32
+	SetConsoleOutputCP(CP_UTF8);
+#endif
 	int arg_base = 1;
 	bool allow_listfile = false;
 	vector<string> args;

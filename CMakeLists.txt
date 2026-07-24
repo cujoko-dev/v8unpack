@@ -45,7 +45,7 @@ target_include_directories(v8unpack_core PUBLIC
 target_compile_definitions(v8unpack_core
     PRIVATE $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>)
 target_compile_options(v8unpack_core PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive->
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /utf-8>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
 )
 target_link_libraries(v8unpack_core
@@ -55,7 +55,7 @@ target_link_libraries(v8unpack_core
 add_executable(v8unpack src/main.cpp)
 target_link_libraries(v8unpack PRIVATE v8unpack_core)
 target_compile_options(v8unpack PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive->
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /utf-8>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
 )
 
