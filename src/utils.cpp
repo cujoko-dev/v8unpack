@@ -266,6 +266,7 @@ int Inflate(std::istream &source, std::ostream &dest)
 			switch (ret) {
 				case Z_NEED_DICT:
 					ret = Z_DATA_ERROR;     // and fall through
+					[[fallthrough]];
 				case Z_DATA_ERROR:
 				case Z_MEM_ERROR:
 					(void)inflateEnd(&strm);
@@ -322,6 +323,7 @@ int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 		switch (ret) {
 			case Z_NEED_DICT:
 				ret = Z_DATA_ERROR;     // and fall through
+				[[fallthrough]];
 			case Z_DATA_ERROR:
 			case Z_MEM_ERROR:
 				(void)inflateEnd(&strm);

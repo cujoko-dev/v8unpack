@@ -16,6 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate vcpkg
+        shell: pwsh
+        run: |
+          $root = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { $env:VCPKG_INSTALLATION_ROOT }
+          if (-not $root) { throw 'Neither VCPKG_ROOT nor VCPKG_INSTALLATION_ROOT is set' }
+          $toolchain = Join-Path $root 'scripts/buildsystems/vcpkg.cmake'
+          if (-not (Test-Path -LiteralPath $toolchain)) { throw "vcpkg toolchain was not found: $toolchain" }
+          "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
+
       - name: Export GitHub Actions cache variables
         uses: actions/github-script@v7
         with:

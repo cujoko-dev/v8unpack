@@ -21,6 +21,7 @@ at http://mozilla.org/MPL/2.0/.
 #include <memory>
 #include <array>
 #include <algorithm>
+#include <cstring>
 #include <limits>
 
 namespace v8unpack {
@@ -74,7 +75,7 @@ string CV8Elem::GetName() const
 	stringstream ss;
 
 	auto currentChar = header.data() + CV8Elem::stElemHeaderBegin::Size();
-	for (auto j = 0; j < ElemNameLen * 2; j += 2, currentChar += 2) {
+	for (size_t j = 0; j < ElemNameLen * 2; j += 2, currentChar += 2) {
 		if (*currentChar == '\0') {
 			break;
 		}
