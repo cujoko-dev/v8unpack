@@ -1,11 +1,11 @@
 Name:           v8unpack
-Version:        3.0.40
+Version:        3.0.45.0
 Release:        1%{?dist}
 Summary:        Enterprise 8 unpack tool 
 
 License:        Mozilla Public License 2.0
-URL:            https://github.com/dmpas/v8unpack
-Source0:        https://github.com/dmpas/v8unpack/archive/v.3.0.38.tar.gz
+URL:            https://github.com/Cujoko/v8unpack
+Source0:        https://github.com/Cujoko/v8unpack/archive/v.%{version}.tar.gz
 
 %if 0%{?rhel}
 BuildRequires:  zlib-devel, boost-devel, zlib-devel-static, boost-devel-static, glibc-devel-static, libstdc++-devel-static

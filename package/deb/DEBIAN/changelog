@@ -1,3 +1,16 @@
+v8unpack (3.0.45.0) noble; urgency=low
+
+  * Force the legacy container format when building EPF and ERF files
+
+ -- Cujoko <cujoko@gmail.com>  Sat, 25 Jul 2026 00:00:00 +0900
+
+v8unpack (3.0.43) noble; urgency=low
+
+  * Format 8.3.16 support
+  * Minor fixes
+
+ -- Sergey Batanov <sergey.batanov@dmpas.ru>  Sat, 03 May 2025 11:50:50 +0300
+
 v8unpack (3.0.43-2~bionic) xenial; urgency=low
 
   * Format 8.3.16 support
