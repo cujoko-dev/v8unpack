@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(v8unpack VERSION 3.1.2 LANGUAGES CXX)
+project(v8unpack VERSION 3.1.0.0 LANGUAGES CXX)
 
-# Windows VERSIONINFO requires four numeric components even though releases
-# follow three-component Semantic Versioning.
+# Keep the fourth component explicit for Windows VERSIONINFO and release tags.
 set(V8UNPACK_WINDOWS_VERSION_TWEAK 0)
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg.json" V8UNPACK_VCPKG_MANIFEST)

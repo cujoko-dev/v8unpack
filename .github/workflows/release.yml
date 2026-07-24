@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "[0-9]*.[0-9]*.[0-9]*"
+      - "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
       - name: Verify tag matches project version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '^\d+\.\d+\.\d+$') { throw "Tag $env:GITHUB_REF_NAME is not a three-component semantic version" }
+          if ($env:GITHUB_REF_NAME -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Tag $env:GITHUB_REF_NAME is not a four-component version" }
           $project = Select-String -Path CMakeLists.txt -Pattern 'project\(v8unpack VERSION ([0-9.]+)' | Select-Object -First 1
           if (-not $project) { throw 'Project version was not found' }
           $version = $project.Matches[0].Groups[1].Value
