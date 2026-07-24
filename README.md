@@ -22,7 +22,10 @@ Windows, POSIX
 Готовые выпуски для Windows x64 доступны на странице
 [GitHub Releases](https://github.com/Cujoko/v8unpack/releases).
 
-Релизные файлы имеют имя `v8unpack-<version>-win-x64-built-by-cujoko.exe`.
+Portable-релизы распространяются в архивах
+`v8unpack-<version>-win-x64-built-by-cujoko.zip`.
+
+Архив содержит `v8unpack.exe`, README, лицензию и файл контрольных сумм.
 
 ## Build
 
