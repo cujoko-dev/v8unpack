@@ -2,7 +2,7 @@
 
 $packageName= 'v8unpack'
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url        = "https://github.com/e8tools/v8unpack/releases/download/v.$version/v8unpack-$version.msi"
+$url        = "https://github.com/Cujoko/v8unpack/releases/download/v.$version/v8unpack-$version.msi"
 $url64      = ''
 
 $packageArgs = @{

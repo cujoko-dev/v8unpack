@@ -17,18 +17,17 @@ V8Unpack - a small console program for rebuild/build configuration files [1C](ht
 
 Windows, POSIX
 
+## Download
+
+Готовые выпуски для Windows x64 доступны на странице
+[GitHub Releases](https://github.com/Cujoko/v8unpack/releases).
+
+Релизные файлы имеют имя `v8unpack-<version>-win-x64-built-by-cujoko.exe`.
+
 ## Build
 
-[![Build status](https://ci.appveyor.com/api/projects/status/48ac3trblfjjkts7/branch/master?svg=true)](https://ci.appveyor.com/project/dmpas/v8unpack/branch/master)
-
-[Прямая ссылка на последнюю успешную сборку win32](https://storage.yandexcloud.net/appveyor/v8unpack/develop/win/v8unpack.exe)
-
-### Ubuntu/Debian
-
-```
-curl https://storage.yandexcloud.net/appveyor/v8unpack/develop/ubuntu/v8unpack-3.0.43~bionic.deb --output v8unpack.deb
-sudo dpkg -i v8unpack.deb
-```
+Для сборки из исходного кода требуются компилятор с поддержкой C++14, CMake,
+Boost (`filesystem`, `system`, `iostreams`) и Zlib.
 
 ## Version 3.0
 
