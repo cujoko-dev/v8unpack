@@ -381,6 +381,18 @@ directory_container_compatibility(const string &in_dirname)
 	return VersionFile::COMPATIBILITY_DEFAULT;
 }
 
+static bool
+has_extension_ignore_case(const string &filename, const string &extension)
+{
+	if (filename.size() < extension.size()) {
+		return false;
+	}
+
+	auto actual_extension = filename.substr(filename.size() - extension.size());
+	transform(actual_extension.begin(), actual_extension.end(), actual_extension.begin(), ::toupper);
+	return actual_extension == extension;
+}
+
 void CV8File::Dispose()
 {
 	vector<CV8Elem>::iterator elem;
@@ -1098,9 +1110,14 @@ int BuildCfFile(const string &in_dirname, const string &out_filename, bool dont_
 		return V8UNPACK_SOURCE_DOES_NOT_EXIST;
 	}
 
+	// EPF and ERF files use the legacy container layout even when their
+	// version marker declares compatibility with 8.3.16 or newer.
+	bool force_legacy_format = has_extension_ignore_case(out_filename, ".EPF")
+			|| has_extension_ignore_case(out_filename, ".ERF");
+
 	int compatibility = directory_container_compatibility(in_dirname);
 
-	if (compatibility >= VersionFile::COMPATIBILITY_V80316) {
+	if (!force_legacy_format && compatibility >= VersionFile::COMPATIBILITY_V80316) {
 		return recursive_pack<Format16>(in_dirname, out_filename, dont_deflate);
 	}
 

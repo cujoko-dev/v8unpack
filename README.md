@@ -1,4 +1,5 @@
 # v8Unpack, GCC edition
+
 Добавлен проект CodeBlocks 13.12.
 Для сборки требуется Boost.
 
@@ -10,9 +11,9 @@
 
 ## Note
 
-V8Unpack - a small console program  for rebuild/build configuration files [1C](http://1c.ru) such as *.cf *.epf *.erf
- 
-## Plaform 
+V8Unpack - a small console program for rebuild/build configuration files [1C](http://1c.ru) such as _.cf _.epf \*.erf
+
+## Plaform
 
 Windows, POSIX
 
@@ -32,9 +33,8 @@ sudo dpkg -i v8unpack.deb
 ## Version 3.0
 
 - Оптимизирована сборка .cf файла ключ -B[UILD]. В версии 2.0 сборка корневого контейнера происходила в оперативной памяти.
-При сборке больших конфигураций это могло приводить к ошибке "segmentation fault". В версии 3.0 сборка корневого контейнера происходит 
-динамически с сохранением элементов контейнера непосредственно в файл по мере их создания.
-
+  При сборке больших конфигураций это могло приводить к ошибке "segmentation fault". В версии 3.0 сборка корневого контейнера происходит
+  динамически с сохранением элементов контейнера непосредственно в файл по мере их создания.
 
 ## Использование
 

@@ -3,6 +3,8 @@ project (v8unpack)
 
 set (v8unpack_VERSION_MAJOR 3)
 set (v8unpack_VERSION_MINOR 0)
+set (v8unpack_VERSION_PATCH 45)
+set (v8unpack_VERSION_TWEAK 0)
 
 if(WIN32)
 	set(RC_FILE "VersionInfo.rc")
