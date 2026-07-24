@@ -17,6 +17,7 @@ Makefile
 /bin
 gmon.out
 /build
+/test/local-fixtures/
 
 cmake-build-*/*
 .idea/*
