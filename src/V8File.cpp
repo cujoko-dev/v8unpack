@@ -13,21 +13,31 @@ at http://mozilla.org/MPL/2.0/.
     2019-2020       fishca      fishcaroot(at)gmail(dot)com
  */
 
-#pragma ide diagnostic ignored "misc-no-recursion"
-
 #include "V8File.h"
 #include "VersionFile.h"
 #include <iostream>
 #include <sstream>
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream.hpp>
 #include <utility>
 #include <memory>
-#include <boost/filesystem/fstream.hpp>
+#include <array>
+#include <algorithm>
+#include <limits>
 
 namespace v8unpack {
 
 using namespace std;
+
+template<typename stream_t>
+static bool data_size_fits_stream(stream_t &file, uint64_t data_size)
+{
+	const auto current = file.tellg();
+	if (current == typename stream_t::pos_type(-1)) return false;
+	file.seekg(0, ios_base::end);
+	const auto end = file.tellg();
+	file.seekg(current, ios_base::beg);
+	if (end == typename stream_t::pos_type(-1) || !file) return false;
+	return data_size <= static_cast<uint64_t>(end);
+}
 
 int RecursiveUnpack(
 		const string                &directory,
@@ -81,7 +91,7 @@ void CV8Elem::resizeHeader(size_t newSize)
 
 int CV8Elem::SetName(const string &ElemName)
 {
-	uint32_t pos = CV8Elem::stElemHeaderBegin::Size();
+	size_t pos = CV8Elem::stElemHeaderBegin::Size();
 
 	for (uint32_t j = 0; j < ElemName.size() * 2; j += 2, pos += 2) {
 		header[pos] = ElemName[j / 2];
@@ -104,26 +114,35 @@ ReadBlockData(basic_istream<char> &file, const typename format::block_header_t &
 	auto Header = firstBlockHeader;
 	auto pBlockHeader = &Header;
 
-	uint32_t read_in_bytes = 0;
+	uint64_t read_in_bytes = 0;
 	while (read_in_bytes < data_size) {
 
 		auto page_size = pBlockHeader->page_size();
 		auto next_page_addr = pBlockHeader->next_page_addr();
 		auto bytes_to_read = MIN(page_size, data_size - read_in_bytes);
 
-		file.read(&pBlockData[read_in_bytes], bytes_to_read);
-
-		read_in_bytes += bytes_to_read;
+		if (page_size == 0) {
+			break;
+		}
+		file.read(&pBlockData[read_in_bytes], static_cast<std::streamsize>(bytes_to_read));
+		auto bytes_read = static_cast<uint64_t>(file.gcount());
+		read_in_bytes += bytes_read;
+		if (bytes_read != bytes_to_read) {
+			break;
+		}
 
 		if (next_page_addr != format::UNDEFINED_VALUE) { // есть следующая страница
 			file.seekg(next_page_addr + format::BASE_OFFSET, ios_base::beg);
 			file.read((char*)&Header, Header.Size());
+			if (!file || !Header.IsCorrect()) {
+				break;
+			}
 		}
 		else
 			break;
 	}
 
-	return data_size;
+	return static_cast<size_t>(read_in_bytes);
 }
 
 template<typename format>
@@ -131,45 +150,58 @@ static size_t
 ReadBlockData(basic_istream<char> &file, const typename format::block_header_t &firstBlockHeader, vector<char> &out)
 {
 	auto data_size = firstBlockHeader.data_size();
+	if (!data_size_fits_stream(file, data_size)) {
+		out.clear();
+		return 0;
+	}
 	out.resize(data_size);
 	auto pBlockData = out.data();
 	auto Header = firstBlockHeader;
 	auto pBlockHeader = &Header;
 
-	uint32_t read_in_bytes = 0;
+	uint64_t read_in_bytes = 0;
 	while (read_in_bytes < data_size) {
 
 		auto page_size = pBlockHeader->page_size();
 		auto next_page_addr = pBlockHeader->next_page_addr();
 		auto bytes_to_read = MIN(page_size, data_size - read_in_bytes);
 
-		file.read(&pBlockData[read_in_bytes], bytes_to_read);
-
-		read_in_bytes += bytes_to_read;
+		if (page_size == 0) {
+			break;
+		}
+		file.read(&pBlockData[read_in_bytes], static_cast<std::streamsize>(bytes_to_read));
+		auto bytes_read = static_cast<uint64_t>(file.gcount());
+		read_in_bytes += bytes_read;
+		if (bytes_read != bytes_to_read) {
+			break;
+		}
 
 		if (next_page_addr != format::UNDEFINED_VALUE) { // есть следующая страница
 			file.seekg(next_page_addr + format::BASE_OFFSET, ios_base::beg);
 			file.read((char*)&Header, Header.Size());
+			if (!file || !Header.IsCorrect()) {
+				break;
+			}
 		}
 		else
 			break;
 	}
 
-	return data_size;
+	out.resize(static_cast<size_t>(read_in_bytes));
+	return static_cast<size_t>(read_in_bytes);
 }
 
 template<typename format>
 static size_t
 ReadBlockData(basic_istream<char> &file, const typename format::block_header_t &firstBlockHeader, basic_ostream<char> &out)
 {
-	uint32_t read_in_bytes;
+	uint64_t read_in_bytes;
 
 	auto data_size = firstBlockHeader.data_size();
 	auto Header = firstBlockHeader;
 	auto pBlockHeader = &Header;
 
-	const int buf_size = 1024; // TODO: Настраиваемый размер буфера
-	char *pBlockData = new char[buf_size];
+	std::array<char, 64 * 1024> buffer{};
 
 	read_in_bytes = 0;
 	while (read_in_bytes < data_size) {
@@ -178,11 +210,22 @@ ReadBlockData(basic_istream<char> &file, const typename format::block_header_t &
 		auto next_page_addr = pBlockHeader->next_page_addr();
 		auto bytes_to_read = MIN(page_size, data_size - read_in_bytes);
 
-		uint32_t read_done = 0;
+		if (page_size == 0) {
+			break;
+		}
+		uint64_t read_done = 0;
 		while (read_done < bytes_to_read) {
-			file.read(pBlockData, MIN(buf_size, bytes_to_read - read_done));
-			uint32_t rd = file.gcount();
-			out.write(pBlockData, rd);
+			auto chunk_size = static_cast<std::streamsize>(
+					std::min<uint64_t>(buffer.size(), bytes_to_read - read_done));
+			file.read(buffer.data(), chunk_size);
+			auto rd = file.gcount();
+			if (rd <= 0) {
+				return static_cast<size_t>(read_in_bytes + read_done);
+			}
+			out.write(buffer.data(), rd);
+			if (!out) {
+				return static_cast<size_t>(read_in_bytes + read_done);
+			}
 			read_done += rd;
 		}
 
@@ -191,14 +234,15 @@ ReadBlockData(basic_istream<char> &file, const typename format::block_header_t &
 		if (next_page_addr != format::UNDEFINED_VALUE) { // есть следующая страница
 			file.seekg(next_page_addr + format::BASE_OFFSET, ios_base::beg);
 			file.read((char*)&Header, Header.Size());
+			if (!file || !Header.IsCorrect()) {
+				break;
+			}
 		}
 		else
 			break;
 	}
 
-	delete[] pBlockData;
-
-	return V8UNPACK_OK;
+	return static_cast<size_t>(read_in_bytes);
 }
 
 template<typename format>
@@ -216,6 +260,9 @@ ReadBlockData(in_stream_t &file, out_stream_t &out)
 {
 	typename format::block_header_t firstBlockHeader;
 	file.read((char*)&firstBlockHeader, firstBlockHeader.Size());
+	if (!file || !firstBlockHeader.IsCorrect()) {
+		return 0;
+	}
 	return ReadBlockData<format>(file, firstBlockHeader, out);
 }
 
@@ -225,7 +272,13 @@ ReadVector(in_stream_t &file)
 {
 	typename format::block_header_t firstBlockHeader;
 	file.read((char*)&firstBlockHeader, firstBlockHeader.Size());
+	if (!file || !firstBlockHeader.IsCorrect()) {
+		return {};
+	}
 	auto elements_count = firstBlockHeader.data_size() / sizeof(element_t);
+	if (!data_size_fits_stream(file, firstBlockHeader.data_size())) {
+		return {};
+	}
 
 	vector<element_t> result;
 	result.reserve(elements_count + 1);
@@ -253,8 +306,9 @@ SafeReadBlockData(in_stream_t &file, out_stream_t &out, size_t &data_size)
 	if (!firstBlockHeader.IsCorrect()) {
 		return false;
 	}
+	auto expected_size = static_cast<size_t>(firstBlockHeader.data_size());
 	data_size = ReadBlockData<format>(file, firstBlockHeader, out);
-	return true;
+	return data_size == expected_size;
 }
 
 template<typename format, typename in_stream_t, typename out_stream_t>
@@ -267,12 +321,16 @@ SafeReadBlockData(in_stream_t &file, out_stream_t &out)
 
 template<typename format>
 static
-int SaveBlockDataToBuffer(char *&cur_pos, const char *pBlockData, uint32_t BlockDataSize, uint32_t PageSize = format::DEFAULT_PAGE_SIZE)
+int SaveBlockDataToBuffer(char *&cur_pos, const char *pBlockData, size_t BlockDataSize, size_t PageSize = format::DEFAULT_PAGE_SIZE)
 {
+	using size_type = decltype(typename format::block_header_t{}.data_size());
+	if (BlockDataSize > std::numeric_limits<size_type>::max()
+			|| PageSize > std::numeric_limits<size_type>::max()) return V8UNPACK_ERROR;
 	if (PageSize < BlockDataSize)
 		PageSize = BlockDataSize;
 
-	typename format::block_header_t CurBlockHeader = format::block_header_t::create(BlockDataSize, PageSize, format::UNDEFINED_VALUE);
+	typename format::block_header_t CurBlockHeader = format::block_header_t::create(
+		static_cast<size_type>(BlockDataSize), static_cast<size_type>(PageSize), format::UNDEFINED_VALUE);
 	memcpy(cur_pos, (char*)&CurBlockHeader, format::block_header_t::Size());
 	cur_pos += format::block_header_t::Size();
 
@@ -291,10 +349,14 @@ template<typename format>
 int SaveBlockData(basic_ostream<char> &file_out, const vector<char> &data, size_t PageSize = format::DEFAULT_PAGE_SIZE)
 {
 	auto BlockDataSize = data.size();
+	using size_type = decltype(typename format::block_header_t{}.data_size());
+	if (BlockDataSize > std::numeric_limits<size_type>::max()
+			|| PageSize > std::numeric_limits<size_type>::max()) return V8UNPACK_ERROR;
 	if (PageSize < BlockDataSize)
 		PageSize = BlockDataSize;
 
-	auto CurBlockHeader = format::block_header_t::create(BlockDataSize, PageSize);
+	auto CurBlockHeader = format::block_header_t::create(
+		static_cast<size_type>(BlockDataSize), static_cast<size_type>(PageSize));
 	file_out.write(reinterpret_cast<char *>(&CurBlockHeader), CurBlockHeader.Size());
 	file_out.write(data.data(), BlockDataSize);
 
@@ -310,10 +372,14 @@ int SaveBlockData(basic_ostream<char> &file_out, const vector<char> &data, size_
 template<typename format>
 int SaveBlockData(basic_ostream<char> &file_out, basic_istream<char> &file_in, size_t BlockDataSize, size_t PageSize = format::DEFAULT_PAGE_SIZE)
 {
+	using size_type = decltype(typename format::block_header_t{}.data_size());
+	if (BlockDataSize > std::numeric_limits<size_type>::max()
+			|| PageSize > std::numeric_limits<size_type>::max()) return V8UNPACK_ERROR;
 	if (PageSize < BlockDataSize)
 		PageSize = BlockDataSize;
 
-	auto CurBlockHeader = format::block_header_t::create(BlockDataSize, PageSize);
+	auto CurBlockHeader = format::block_header_t::create(
+		static_cast<size_type>(BlockDataSize), static_cast<size_type>(PageSize));
 	file_out.write(reinterpret_cast<char *>(&CurBlockHeader), CurBlockHeader.Size());
 	full_copy(file_in, file_out);
 
@@ -340,10 +406,14 @@ int SaveBlockData(basic_ostream<char> &file_out, boost::filesystem::path &in_fil
 template<typename format>
 int SaveBlockData(basic_ostream<char> &file_out, const char *pBlockData, size_t BlockDataSize, size_t PageSize = format::DEFAULT_PAGE_SIZE)
 {
+	using size_type = decltype(typename format::block_header_t{}.data_size());
+	if (BlockDataSize > std::numeric_limits<size_type>::max()
+			|| PageSize > std::numeric_limits<size_type>::max()) return V8UNPACK_ERROR;
 	if (PageSize < BlockDataSize)
 		PageSize = BlockDataSize;
 
-	auto CurBlockHeader = format::block_header_t::create(BlockDataSize, PageSize);
+	auto CurBlockHeader = format::block_header_t::create(
+		static_cast<size_type>(BlockDataSize), static_cast<size_type>(PageSize));
 	file_out.write(reinterpret_cast<char *>(&CurBlockHeader), CurBlockHeader.Size());
 	file_out.write(reinterpret_cast<const char *>(pBlockData), BlockDataSize);
 
@@ -389,8 +459,24 @@ has_extension_ignore_case(const string &filename, const string &extension)
 	}
 
 	auto actual_extension = filename.substr(filename.size() - extension.size());
-	transform(actual_extension.begin(), actual_extension.end(), actual_extension.begin(), ::toupper);
+	transform(actual_extension.begin(), actual_extension.end(), actual_extension.begin(),
+			[](unsigned char c) { return static_cast<char>(toupper(c)); });
 	return actual_extension == extension;
+}
+
+static bool
+is_safe_element_name(const string &name)
+{
+	if (name.empty() || name == "." || name == "..") {
+		return false;
+	}
+
+	const boost::filesystem::path path(name);
+	return !path.is_absolute()
+			&& !path.has_root_path()
+			&& path.filename() == path
+			&& name.find('/') == string::npos
+			&& name.find('\\') == string::npos;
 }
 
 void CV8File::Dispose()
@@ -403,7 +489,7 @@ void CV8File::Dispose()
 }
 
 // Нѣкоторый условный предѣл
-const size_t SmartLimit = 00 *1024;
+const size_t SmartLimit = 200 * 1024;
 const size_t SmartUnpackedLimit = 20 *1024*1024;
 
 /*
@@ -437,7 +523,7 @@ public:
 	void save_as(const boost::filesystem::path &dest) override
 	{
 		file.close();
-		boost::system::error_code error;
+		std::error_code error;
 		boost::filesystem::rename(path, dest, error);
 	}
 
@@ -445,7 +531,7 @@ public:
 	{
 		if (file) {
 			file.close();
-			boost::system::error_code ec;
+			std::error_code ec;
 			boost::filesystem::remove(path, ec);
 		}
 	}
@@ -458,8 +544,7 @@ class vector_data_source_t : public data_source_t
 {
 public:
 	explicit vector_data_source_t(vector<char> data) :
-			__data(move(data)),
-			__stream(__data.data(), __data.size())
+			__stream(string(data.begin(), data.end()), ios_base::binary)
 	{}
 
 	istream &stream() override { return __stream; }
@@ -474,8 +559,7 @@ public:
 	~vector_data_source_t() override = default;
 
 private:
-	vector<char> __data;
-	boost::iostreams::stream<boost::iostreams::array_source> __stream;
+	istringstream __stream;
 };
 
 template<typename format>
@@ -529,14 +613,15 @@ static bool NameInFilter(const string &name, const vector<string> &filter)
 template<typename format>
 static int recursive_unpack(const string& directory, basic_istream<char>& file, const vector<string>& filter, bool boolInflate, bool UnpackWhenNeed)
 {
+	(void)UnpackWhenNeed;
 	int ret = 0;
 
 	boost::filesystem::path p_dir(directory);
 
 	if (!boost::filesystem::exists(p_dir)) {
-		if (!boost::filesystem::create_directory(directory)) {
+		if (!boost::filesystem::create_directories(directory)) {
 			cerr << "RecursiveUnpack. Error in creating directory!" << endl;
-			return ret;
+			return V8UNPACK_ERROR_CREATING_OUTPUT_FILE;
 		}
 	}
 
@@ -565,6 +650,10 @@ static int recursive_unpack(const string& directory, basic_istream<char>& file, 
 			break;
 		}
 		string ElemName = elem.GetName();
+		if (!is_safe_element_name(ElemName)) {
+			cerr << "Unsafe element name in container: " << ElemName << endl;
+			return V8UNPACK_UNSAFE_ELEMENT_NAME;
+		}
 
 		if (!NameInFilter(ElemName, filter)) {
 			continue;
@@ -637,14 +726,15 @@ int ListFiles(const string &filename)
 template<typename format>
 static int unpack_to_folder(boost::filesystem::ifstream &file, const string &dirname, const string &UnpackElemWithName, bool print_progress)
 {
+	(void)print_progress;
 	int ret = V8UNPACK_OK;
 
 	boost::filesystem::path p_dir(dirname);
 
 	if (!boost::filesystem::exists(p_dir)) {
-		if (!boost::filesystem::create_directory(dirname)) {
+		if (!boost::filesystem::create_directories(dirname)) {
 			cerr << "RecursiveUnpack. Error in creating directory!" << endl;
-			return ret;
+			return V8UNPACK_ERROR_CREATING_OUTPUT_FILE;
 		}
 	}
 
@@ -681,6 +771,10 @@ static int unpack_to_folder(boost::filesystem::ifstream &file, const string &dir
 		}
 
 		string ElemName = elem.GetName();
+		if (!is_safe_element_name(ElemName)) {
+			cerr << "Unsafe element name in container: " << ElemName << endl;
+			return V8UNPACK_UNSAFE_ELEMENT_NAME;
+		}
 
 		// если передано имя блока для распаковки, пропускаем все остальные
 		if (!UnpackElemWithName.empty() && UnpackElemWithName != ElemName) {
@@ -714,8 +808,6 @@ static int unpack_to_folder(boost::filesystem::ifstream &file, const string &dir
 
 int UnpackToFolder(const string &filename_in, const string &dirname, const string &UnpackElemWithName, bool print_progress)
 {
-	int ret = 0;
-
 	boost::filesystem::ifstream file(filename_in, ios_base::binary);
 
 	if (!file) {
@@ -744,13 +836,13 @@ static bool checkV8File(basic_istream<char> &file)
 	auto file_size = file.tellg();
 
 	typename format::file_header_t FileHeader;
-	if (file_size >= format::BASE_OFFSET + FileHeader.Size()) {
+	if (file_size >= format::BASE_OFFSET + static_cast<std::streamoff>(FileHeader.Size())) {
 
 		file.seekg(format::BASE_OFFSET);
 		file.read((char *) &FileHeader, FileHeader.Size());
 
 		typename format::block_header_t BlockHeader;
-		if (file_size >= format::BASE_OFFSET + FileHeader.Size() + BlockHeader.Size()) {
+		if (file_size >= format::BASE_OFFSET + static_cast<std::streamoff>(FileHeader.Size() + BlockHeader.Size())) {
 			memset(&BlockHeader, 0, BlockHeader.Size());
 			file.read((char *) &BlockHeader, BlockHeader.Size());
 			result = BlockHeader.IsCorrect();
@@ -782,6 +874,19 @@ struct PackElementEntry {
 	size_t                   data_size;
 };
 
+static vector<boost::filesystem::path>
+sorted_directory_entries(const boost::filesystem::path &directory)
+{
+	vector<boost::filesystem::path> entries;
+	for (const auto &entry : boost::filesystem::directory_iterator(directory)) {
+		entries.push_back(entry.path());
+	}
+	std::sort(entries.begin(), entries.end(), [](const auto &left, const auto &right) {
+		return left.filename().generic_string() < right.filename().generic_string();
+	});
+	return entries;
+}
+
 template<typename format>
 static int
 pack_from_folder(const boost::filesystem::path &p_curdir, boost::filesystem::ofstream &file_out)
@@ -792,13 +897,9 @@ pack_from_folder(const boost::filesystem::path &p_curdir, boost::filesystem::ofs
 		full_copy(file_in, file_out);
 	}
 
-	boost::filesystem::directory_iterator d_end;
-	boost::filesystem::directory_iterator it(p_curdir);
-
 	vector<PackElementEntry> Elems;
 
-	for (; it != d_end; it++) {
-		boost::filesystem::path current_file(it->path());
+	for (const auto &current_file : sorted_directory_entries(p_curdir)) {
 		if (current_file.extension().string() == ".header") {
 
 			PackElementEntry elem;
@@ -806,7 +907,7 @@ pack_from_folder(const boost::filesystem::path &p_curdir, boost::filesystem::ofs
 			elem.header_file = current_file;
 			elem.header_size = boost::filesystem::file_size(current_file);
 
-			elem.data_file = current_file.replace_extension(".data");
+			elem.data_file = boost::filesystem::path(current_file).replace_extension(".data");
 			elem.data_size = boost::filesystem::file_size(elem.data_file);
 
 			Elems.push_back(elem);
@@ -830,17 +931,20 @@ pack_from_folder(const boost::filesystem::path &p_curdir, boost::filesystem::ofs
 	//      + [6] сами данные (не менее одной страницы?)
 
 	// [0] + [1]
-	uint32_t cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
+	uint64_t cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
 	size_t addr_block_size = MAX(format::elem_addr_t::Size() * ElemsNum, format::DEFAULT_PAGE_SIZE);
 	cur_block_addr += addr_block_size; // +[2]
 
 	for (const auto &elem : Elems) {
 		typename format::elem_addr_t addr;
+		using address_type = decltype(addr.elem_header_addr);
+		if (cur_block_addr > std::numeric_limits<address_type>::max()) return V8UNPACK_ERROR;
 
-		addr.elem_header_addr = cur_block_addr;
+		addr.elem_header_addr = static_cast<address_type>(cur_block_addr);
 		cur_block_addr += format::block_header_t::Size() + elem.header_size; // +[3]+[4]
 
-		addr.elem_data_addr = cur_block_addr;
+		if (cur_block_addr > std::numeric_limits<address_type>::max()) return V8UNPACK_ERROR;
+		addr.elem_data_addr = static_cast<address_type>(cur_block_addr);
 		cur_block_addr += format::block_header_t::Size(); // +[5]
 		cur_block_addr += MAX(elem.data_size, format::DEFAULT_PAGE_SIZE); // +[6]
 
@@ -929,11 +1033,7 @@ int CV8File::LoadFileFromFolder(const string &dirname)
 
     Elems.clear();
 
-    boost::filesystem::directory_iterator d_end;
-    boost::filesystem::directory_iterator dit(dirname);
-
-    for (; dit != d_end; ++dit) {
-        boost::filesystem::path current_file(dit->path());
+    for (const auto &current_file : sorted_directory_entries(dirname)) {
         if (current_file.filename().string().at(0) == '.')
             continue;
 
@@ -974,11 +1074,8 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 {
 	uint32_t ElemsNum = 0;
 	{
-		boost::filesystem::directory_iterator d_end;
-		boost::filesystem::directory_iterator dit(in_dirname);
-
-		for (; dit != d_end; ++dit) {
-			if (!is_dot_file(dit->path())) {
+		for (const auto &entry : sorted_directory_entries(in_dirname)) {
+			if (!is_dot_file(entry)) {
 				++ElemsNum;
 			}
 		}
@@ -992,7 +1089,7 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 	FileHeader.storage_ver = 0;
 	FileHeader.reserved = 0;
 
-	auto cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
+	uint64_t cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
 	typename format::elem_addr_t *pTOC;
 	pTOC = new typename format::elem_addr_t[ElemsNum];
 	cur_block_addr += MAX(format::elem_addr_t::Size() * ElemsNum, format::DEFAULT_PAGE_SIZE);
@@ -1014,23 +1111,31 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 
 	uint32_t ElemNum = 0;
 
-	boost::filesystem::directory_iterator d_end;
-	boost::filesystem::directory_iterator dit(in_dirname);
-	for (; dit != d_end; ++dit) {
+	for (const auto &current_file : sorted_directory_entries(in_dirname)) {
 
-		if (is_dot_file(dit->path())) {
+		if (is_dot_file(current_file)) {
 			continue;
 		}
 
-		boost::filesystem::path current_file(dit->path());
 		string name = current_file.filename().string();
 
 		CV8Elem pElem(name);
 
-		pTOC[ElemNum].elem_header_addr = file_out.tellp() - format::BASE_OFFSET;
+		using address_type = decltype(pTOC[ElemNum].elem_header_addr);
+		const auto header_address = file_out.tellp() - format::BASE_OFFSET;
+		if (header_address < 0 || static_cast<uint64_t>(header_address) > std::numeric_limits<address_type>::max()) {
+			delete [] pTOC;
+			return V8UNPACK_ERROR;
+		}
+		pTOC[ElemNum].elem_header_addr = static_cast<address_type>(header_address);
 		SaveBlockData<format>(file_out, pElem.header.data(), pElem.header.size(), pElem.header.size());
 
-		pTOC[ElemNum].elem_data_addr = file_out.tellp() - format::BASE_OFFSET;
+		const auto data_address = file_out.tellp() - format::BASE_OFFSET;
+		if (data_address < 0 || static_cast<uint64_t>(data_address) > std::numeric_limits<address_type>::max()) {
+			delete [] pTOC;
+			return V8UNPACK_ERROR;
+		}
+		pTOC[ElemNum].elem_data_addr = static_cast<address_type>(data_address);
 		pTOC[ElemNum].fffffff = format::UNDEFINED_VALUE;
 
 		if (boost::filesystem::is_directory(current_file)) {
@@ -1130,11 +1235,12 @@ int CV8Elem::Pack(bool deflate)
 	if (!IsV8File) {
 
 		if (deflate) {
+			if (data.size() > std::numeric_limits<uint32_t>::max()) return V8UNPACK_ERROR;
 
 			char *DeflateBuffer = nullptr;
 			uint32_t DeflateSize = 0;
 
-			ret = Deflate(data.data(), &DeflateBuffer, data.size(), &DeflateSize);
+			ret = Deflate(data.data(), &DeflateBuffer, static_cast<uint32_t>(data.size()), &DeflateSize);
 			if (ret) {
 				return ret;
 			}
@@ -1151,11 +1257,12 @@ int CV8Elem::Pack(bool deflate)
 		UnpackedData.Dispose();
 
 		if (deflate) {
+			if (data.size() > std::numeric_limits<uint32_t>::max()) return V8UNPACK_ERROR;
 
 			char *DeflateBuffer = nullptr;
 			uint32_t DeflateSize = 0;
 
-			ret = Deflate(data.data(), &DeflateBuffer, data.size(), &DeflateSize);
+			ret = Deflate(data.data(), &DeflateBuffer, static_cast<uint32_t>(data.size()), &DeflateSize);
 			if (ret) {
 				return ret;
 			}
@@ -1202,15 +1309,17 @@ int CV8File::GetData(vector<char> &data)
 	vector<format::elem_addr_t> pTempElemsAddrs(ElemsNum);
 	auto pCurrentTempElem = pTempElemsAddrs.begin();
 
-	auto cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
+	uint64_t cur_block_addr = format::file_header_t::Size() + format::block_header_t::Size();
 	cur_block_addr += MAX(format::elem_addr_t::Size() * ElemsNum, format::DEFAULT_PAGE_SIZE);
 
 	for (const auto &elem : Elems) {
+		if (cur_block_addr > std::numeric_limits<uint32_t>::max()) return V8UNPACK_ERROR;
 
-		pCurrentTempElem->elem_header_addr = cur_block_addr;
+		pCurrentTempElem->elem_header_addr = static_cast<uint32_t>(cur_block_addr);
 		cur_block_addr += format::block_header_t::Size() + elem.header.size();
 
-		pCurrentTempElem->elem_data_addr = cur_block_addr;
+		if (cur_block_addr > std::numeric_limits<uint32_t>::max()) return V8UNPACK_ERROR;
+		pCurrentTempElem->elem_data_addr = static_cast<uint32_t>(cur_block_addr);
 		cur_block_addr += format::block_header_t::Size();
 		cur_block_addr += MAX(elem.data.size(), format::DEFAULT_PAGE_SIZE);
 
@@ -1265,4 +1374,3 @@ stBlockHeader64 stBlockHeader64::create(uint64_t  block_data_size, uint64_t  pag
 }
 
 }
-#pragma clang diagnostic pop

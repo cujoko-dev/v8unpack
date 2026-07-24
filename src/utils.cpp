@@ -6,8 +6,8 @@ at http://mozilla.org/MPL/2.0/.
 ----------------------------------------------------------*/
 #include "V8File.h"
 #include <iostream>
-#include "zlib.h"
-#include <boost/filesystem/fstream.hpp>
+#include <zlib.h>
+#include <limits>
 
 #define CHUNK 16384
 #ifndef DEF_MEM_LEVEL
@@ -77,8 +77,6 @@ void _itoht64(uint64_t value, char *ht)
 
 int Inflate(const std::string &in_filename, const std::string &out_filename)
 {
-	int ret;
-
 	std::shared_ptr<std::istream> input;
 
 	if (in_filename == "-") {
@@ -193,7 +191,7 @@ int Deflate(std::istream &source, std::ostream &dest)
 
 	// compress until end of file
 	do {
-		strm.avail_in = source.read(reinterpret_cast<char *>(in), CHUNK).gcount();
+		strm.avail_in = static_cast<uInt>(source.read(reinterpret_cast<char *>(in), CHUNK).gcount());
 		if (source.bad()) {
 			(void)deflateEnd(&strm);
 			return Z_ERRNO;
@@ -249,7 +247,7 @@ int Inflate(std::istream &source, std::ostream &dest)
 		return ret;
 
 	do {
-		strm.avail_in = source.read(reinterpret_cast<char *>(in), CHUNK).gcount();
+		strm.avail_in = static_cast<uInt>(source.read(reinterpret_cast<char *>(in), CHUNK).gcount());
 		if (source.bad()) {
 			(void)inflateEnd(&strm);
 			return Z_ERRNO;
@@ -296,8 +294,9 @@ int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 	z_stream strm;
 	unsigned char out[CHUNK];
 
-	unsigned long out_buf_len = in_len + CHUNK;
-	*out_buf = static_cast<char*> (realloc(*out_buf, out_buf_len));
+	std::vector<char> result;
+	result.reserve(static_cast<size_t>(in_len) + CHUNK);
+	*out_buf = nullptr;
 	*out_len = 0;
 
 
@@ -329,24 +328,25 @@ int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 				return ret;
 		}
 		have = CHUNK - strm.avail_out;
-		if (*out_len + have > out_buf_len) {
-			//if (have < sizeof
-			out_buf_len = out_buf_len + sizeof(out);
-			*out_buf = static_cast<char*> (realloc(*out_buf, out_buf_len));
-			if (!out_buf) {
-				(void)deflateEnd(&strm);
-				return Z_ERRNO;
-			}
+		if (result.size() + have > std::numeric_limits<uint32_t>::max()) {
+			(void)inflateEnd(&strm);
+			return Z_MEM_ERROR;
 		}
-		memcpy((*out_buf + *out_len), out, have);
-		*out_len += have;
+		result.insert(result.end(), reinterpret_cast<char *>(out),
+				reinterpret_cast<char *>(out) + have);
 	} while (strm.avail_out == 0);
 
 	// done when inflate() says it's done
 
 	// clean up and return
 	(void)inflateEnd(&strm);
-	return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
+	if (ret != Z_STREAM_END) {
+		return Z_DATA_ERROR;
+	}
+	*out_len = static_cast<uint32_t>(result.size());
+	*out_buf = new char[result.size()];
+	std::copy(result.begin(), result.end(), *out_buf);
+	return Z_OK;
 }
 
 int Deflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_len)
@@ -356,8 +356,9 @@ int Deflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 	z_stream strm;
 	unsigned char out[CHUNK];
 
-	unsigned long out_buf_len = in_len + CHUNK;
-	*out_buf = static_cast<char*> (realloc(*out_buf, out_buf_len));
+	std::vector<char> result;
+	result.reserve(static_cast<size_t>(in_len) + CHUNK);
+	*out_buf = nullptr;
 	*out_len = 0;
 
 	// allocate deflate state
@@ -382,17 +383,12 @@ int Deflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 		ret = deflate(&strm, flush);    // no bad return value
 		assert(ret != Z_STREAM_ERROR);  // state not clobbered
 		have = sizeof(out) - strm.avail_out;
-		if (*out_len + have > out_buf_len) {
-			//if (have < sizeof
-			out_buf_len = out_buf_len + sizeof(out);
-			*out_buf = static_cast<char*> (realloc(*out_buf, out_buf_len));
-			if (!out_buf) {
-				(void)deflateEnd(&strm);
-				return Z_ERRNO;
-			}
+		if (result.size() + have > std::numeric_limits<uint32_t>::max()) {
+			(void)deflateEnd(&strm);
+			return Z_MEM_ERROR;
 		}
-		memcpy((*out_buf + *out_len), out, have);
-		*out_len += have;
+		result.insert(result.end(), reinterpret_cast<char *>(out),
+				reinterpret_cast<char *>(out) + have);
 	} while (strm.avail_out == 0);
 	assert(strm.avail_in == 0);     // all input will be used
 
@@ -401,23 +397,27 @@ int Deflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 
 	// clean up and return
 	(void)deflateEnd(&strm);
+	*out_len = static_cast<uint32_t>(result.size());
+	*out_buf = new char[result.size()];
+	std::copy(result.begin(), result.end(), *out_buf);
 	return Z_OK;
 
 }
 
 bool try_inflate(std::vector<char> &data)
 {
+	if (data.size() > std::numeric_limits<uint32_t>::max()) return false;
 	char    *inflated_data = nullptr;
 	uint32_t inflated_data_size = 0;
 
-	auto ret = Inflate(data.data(), &inflated_data, data.size(), &inflated_data_size);
+	auto ret = Inflate(data.data(), &inflated_data, static_cast<uint32_t>(data.size()), &inflated_data_size);
 	if (ret == Z_OK) {
 		data.assign(inflated_data, inflated_data + inflated_data_size);
-		free(inflated_data);
+		delete[] inflated_data;
 		return true;
 	}
 	if (inflated_data != nullptr) {
-		free(inflated_data);
+		delete[] inflated_data;
 	}
 	return false;
 }
