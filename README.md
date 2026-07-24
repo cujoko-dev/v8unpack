@@ -21,14 +21,29 @@
 ```text
 v8unpack parse    input.epf output-directory [block-name ...]
 v8unpack build    input-directory output.epf
+```
+
+## Диагностика
+
+```text
+v8unpack check    input.epf [--json]
+v8unpack info     input.epf [--json]
+v8unpack manifest input.epf manifest.json
+v8unpack -listfiles input.epf
+```
+
+## Низкоуровневые команды
+
+```text
 v8unpack unpack   input.cf output-directory [block-name]
 v8unpack pack     input-directory output.cf
 v8unpack inflate  input.data output
 v8unpack deflate  input output.data
-v8unpack check    input.epf [--json]
-v8unpack info     input.epf [--json]
-v8unpack manifest input.epf manifest.json
 ```
+
+`parse/build` предназначены для обычного рекурсивного разбора и сборки.
+`unpack/pack` сохраняют низкоуровневое представление из `FileHeader`, `.header`
+и `.data`, а `inflate/deflate` работают непосредственно с потоками zlib.
 
 Старые ключи (`-P`, `-B`, `-U`, `-PA`, `-I`, `-D`, `-LF`) сохранены для
 совместимости. Общие параметры: `--force`, `--quiet`, `--verbose`, `--json`.
@@ -59,10 +74,10 @@ ctest --preset windows-x64
 
 1. Обновить версию в `project(... VERSION ...)` и `vcpkg.json`.
 2. Собрать и выполнить тесты.
-3. Создать и отправить трёхкомпонентный SemVer-тег, например `3.1.0`.
+3. Создать и отправить трёхкомпонентный SemVer-тег, например `3.1.1`.
 
 Публичные версии содержат три компонента. В числовых свойствах Windows EXE
-четвёртый компонент автоматически дополняется нулём (`3.1.0.0`).
+четвёртый компонент автоматически дополняется нулём (`3.1.1.0`).
 
 GitHub Actions проверит совпадение тега с версией проекта, соберёт Windows x64,
 запустит тесты, создаст ZIP и опубликует GitHub Release. CI запускается для

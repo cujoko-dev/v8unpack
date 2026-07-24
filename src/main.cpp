@@ -104,32 +104,30 @@ int usage(vector<string> &)
 		 << " Copyright (c) " << V8P_RIGHT << endl;
 
 	cout << endl;
-	cout << "Unpack, pack, deflate and inflate 1C v8 file (*.cf)" << endl;
-	cout << endl;
-	cout << "V8UNPACK" << endl;
-	cout << "  -U[NPACK]            in_filename.cf     out_dirname [block_name]" << endl;
-	cout << "  -U[NPACK]  -L[IST]   listfile" << endl;
-	cout << "  -PA[CK]              in_dirname         out_filename.cf" << endl;
-	cout << "  -PA[CK]    -L[IST]   listfile" << endl;
-	cout << "  -I[NFLATE]           in_filename.data   out_filename" << endl;
-	cout << "  -I[NFLATE] -L[IST]   listfile" << endl;
-	cout << "  -D[EFLATE]           in_filename        filename.data" << endl;
-	cout << "  -D[EFLATE] -L[IST]   listfile" << endl;
-	cout << "  -P[ARSE]             in_filename        out_dirname [block_name1 block_name2 ...]" << endl;
-	cout << "  -P[ARSE]   -L[IST]   listfile" << endl;
-	cout << "  -B[UILD] [-N[OPACK]] in_dirname         out_filename" << endl;
-	cout << "  -B[UILD] [-N[OPACK]] -L[IST] listfile" << endl;
-	cout << "  -L[IST]              listfile" << endl;
-	
-	cout << "  -LISTFILES|-LF       in_filename" << endl;
-	cout << "  check                in_filename [--json]" << endl;
-	cout << "  info                 in_filename [--json]" << endl;
-	cout << "  manifest             in_filename out_manifest.json" << endl;
-	cout << "  Global options: --force --quiet --verbose --json" << endl;
+	cout << "Parse and build 1C v8 containers (*.cf, *.epf, *.erf)" << endl;
 
-	cout << "  -E[XAMPLE]" << endl;
-	cout << "  -BAT" << endl;
-	cout << "  -V[ERSION]" << endl;
+	cout << endl << "Primary commands:" << endl;
+	cout << "  parse    input-file output-directory [block-name ...]" << endl;
+	cout << "  build    [-nopack] input-directory output-file" << endl;
+
+	cout << endl << "Diagnostics:" << endl;
+	cout << "  check    input-file [--json]" << endl;
+	cout << "  info     input-file [--json]" << endl;
+	cout << "  manifest input-file manifest.json" << endl;
+	cout << "  -listfiles | -lf input-file" << endl;
+
+	cout << endl << "Low-level commands:" << endl;
+	cout << "  unpack   input-file output-directory [block-name]" << endl;
+	cout << "  pack     input-directory output-file" << endl;
+	cout << "  inflate  input-data output-file" << endl;
+	cout << "  deflate  input-file output-data" << endl;
+
+	cout << endl << "Compatibility and automation:" << endl;
+	cout << "  Legacy aliases: -P, -B, -U, -PA, -I, -D, -LF" << endl;
+	cout << "  List files:     -L[IST] listfile" << endl;
+	cout << "  Other:          -E[XAMPLE], -BAT, -V[ERSION]" << endl;
+
+	cout << endl << "Global options: --force --quiet --verbose --json" << endl;
 
 	return 0;
 }
