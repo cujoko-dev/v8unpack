@@ -54,6 +54,10 @@ jobs:
         shell: pwsh
         run: ./scripts/package-release.ps1 -Executable build/windows-x64/Release/v8unpack.exe -Version $env:GITHUB_REF_NAME
 
+      - name: Verify portable archive
+        shell: pwsh
+        run: ./scripts/verify-portable.ps1 -Archive "dist/v8unpack-$env:GITHUB_REF_NAME-win-x64-built-by-cujoko.zip" -ExpectedVersion $env:GITHUB_REF_NAME
+
       - name: Publish GitHub Release
         shell: pwsh
         env:

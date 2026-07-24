@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "v8unpack",
-  "version-string": "3.1.1",
+  "version-string": "3.1.2",
   "dependencies": [
     "zlib"
   ]
