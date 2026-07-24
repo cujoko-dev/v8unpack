@@ -34,7 +34,7 @@ handler_t get_run_mode(const vector<string> &args, int &arg_base, bool &allow_li
 int usage(vector<string> &argv)
 {
 	cout << endl;
-	cout << "V8Upack Version " << V8P_VERSION
+	cout << "V8Upack Version " << V8P_VERSION << " (" << V8P_BUILD_SIGNATURE << ")"
 		 << " Copyright (c) " << V8P_RIGHT << endl;
 
 	cout << endl;
@@ -66,7 +66,7 @@ int usage(vector<string> &argv)
 
 int version(vector<string> &argv)
 {
-	cout << V8P_VERSION << endl;
+	cout << V8P_VERSION << " (" << V8P_BUILD_SIGNATURE << ")" << endl;
 	return 0;
 }
 
