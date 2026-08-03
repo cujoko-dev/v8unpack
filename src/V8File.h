@@ -240,9 +240,9 @@ struct Format15
 	typedef stBlockHeader block_header_t;
 	typedef stElemAddr    elem_addr_t;
 
-	static const uint32_t UNDEFINED_VALUE = 0x7fffffff;
-	static const std::streamoff BASE_OFFSET = 0;
-	static const uint32_t DEFAULT_PAGE_SIZE = 512;
+	inline static constexpr uint32_t UNDEFINED_VALUE = 0x7fffffff;
+	inline static constexpr std::streamoff BASE_OFFSET = 0;
+	inline static constexpr uint32_t DEFAULT_PAGE_SIZE = 512;
 
 	template <class _Elem, class _Traits>
 	static std::basic_ostream<_Elem, _Traits>&
@@ -257,9 +257,9 @@ struct Format16
 	typedef stBlockHeader64 block_header_t;
 	typedef stElemAddr64    elem_addr_t;
 
-	static const uint64_t UNDEFINED_VALUE = 0xffffffffffffffff;
-	static const std::streamoff BASE_OFFSET = 0x1359;
-	static const uint64_t DEFAULT_PAGE_SIZE = 512;
+	inline static constexpr uint64_t UNDEFINED_VALUE = 0xffffffffffffffff;
+	inline static constexpr std::streamoff BASE_OFFSET = 0x1359;
+	inline static constexpr uint64_t DEFAULT_PAGE_SIZE = 512;
 
 	static std::basic_ostream<char>&
 	placeholder(std::basic_ostream<char>& _Ostr);

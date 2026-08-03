@@ -961,7 +961,7 @@ static int unpack_to_folder(boost::filesystem::ifstream &file, const string &dir
 		data_out.close();
 	}
 
-	return V8UNPACK_OK;
+	return ret;
 }
 
 int UnpackToFolder(const string &filename_in, const string &dirname, const string &UnpackElemWithName, bool print_progress)
@@ -999,9 +999,8 @@ static bool checkV8File(basic_istream<char> &file)
 		file.seekg(format::BASE_OFFSET);
 		file.read((char *) &FileHeader, FileHeader.Size());
 
-		typename format::block_header_t BlockHeader;
+		typename format::block_header_t BlockHeader{};
 		if (file_size >= format::BASE_OFFSET + static_cast<std::streamoff>(FileHeader.Size() + BlockHeader.Size())) {
-			memset(&BlockHeader, 0, BlockHeader.Size());
 			file.read((char *) &BlockHeader, BlockHeader.Size());
 			result = BlockHeader.IsCorrect();
 		} else {
