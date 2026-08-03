@@ -12,7 +12,7 @@ BEGIN
       VALUE "FileDescription", "V8 Unpack Tool - built by Cujoko"
       VALUE "FileVersion", "@PROJECT_VERSION@ (built by Cujoko)"
       VALUE "InternalName", "v8unpack"
-      VALUE "LegalCopyright", "© 2008 Denis Demidov; © 2014–2022 Sergey Batanov; © 2019–2020 Sergey Rudakov"
+      VALUE "LegalCopyright", "© 2008 Denis Demidov; © 2014–2022 Sergey Batanov; © 2019–2020 Sergey Rudakov; © 2026 Cujoko"
       VALUE "OriginalFilename", "v8unpack.exe"
       VALUE "ProductName", "v8unpack"
       VALUE "ProductVersion", "@PROJECT_VERSION@ (built by Cujoko)"

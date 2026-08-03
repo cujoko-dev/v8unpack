@@ -6,6 +6,14 @@
 Это поддерживаемая сборка форка v8Unpack: **Built by Cujoko**. Проект основан
 на работах Denis Demidov, Sergey Batanov, Sergey Rudakov и других участников.
 
+## Авторы и участники
+
+- Denis Demidov;
+- Sergey Batanov;
+- Sergey Rudakov;
+- Cujoko — развитие и сопровождение этого форка, современная сборка Windows
+  и улучшения производительности `parse/build`.
+
 ## Скачать
 
 Готовые выпуски Windows x64 находятся в
