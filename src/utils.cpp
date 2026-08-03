@@ -9,7 +9,7 @@ at http://mozilla.org/MPL/2.0/.
 #include <zlib.h>
 #include <limits>
 
-#define CHUNK 16384
+#define CHUNK (64 * 1024)
 #ifndef DEF_MEM_LEVEL
 #  if MAX_MEM_LEVEL >= 8
 #    define DEF_MEM_LEVEL 8
@@ -288,17 +288,15 @@ int Inflate(std::istream &source, std::ostream &dest)
 	return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 }
 
-int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_len)
+static int InflateVector(const char* in_buf, uint32_t in_len, std::vector<char> &result)
 {
 	int ret;
 	unsigned have;
 	z_stream strm;
 	unsigned char out[CHUNK];
 
-	std::vector<char> result;
+	result.clear();
 	result.reserve(static_cast<size_t>(in_len) + CHUNK);
-	*out_buf = nullptr;
-	*out_len = 0;
 
 
 	// allocate inflate state
@@ -345,6 +343,16 @@ int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 	if (ret != Z_STREAM_END) {
 		return Z_DATA_ERROR;
 	}
+	return Z_OK;
+}
+
+int Inflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_len)
+{
+	std::vector<char> result;
+	*out_buf = nullptr;
+	*out_len = 0;
+	const auto ret = InflateVector(in_buf, in_len, result);
+	if (ret != Z_OK) return ret;
 	*out_len = static_cast<uint32_t>(result.size());
 	*out_buf = new char[result.size()];
 	std::copy(result.begin(), result.end(), *out_buf);
@@ -409,17 +417,11 @@ int Deflate(const char* in_buf, char** out_buf, uint32_t in_len, uint32_t* out_l
 bool try_inflate(std::vector<char> &data)
 {
 	if (data.size() > std::numeric_limits<uint32_t>::max()) return false;
-	char    *inflated_data = nullptr;
-	uint32_t inflated_data_size = 0;
-
-	auto ret = Inflate(data.data(), &inflated_data, static_cast<uint32_t>(data.size()), &inflated_data_size);
+	std::vector<char> inflated_data;
+	auto ret = InflateVector(data.data(), static_cast<uint32_t>(data.size()), inflated_data);
 	if (ret == Z_OK) {
-		data.assign(inflated_data, inflated_data + inflated_data_size);
-		delete[] inflated_data;
+		data.swap(inflated_data);
 		return true;
-	}
-	if (inflated_data != nullptr) {
-		delete[] inflated_data;
 	}
 	return false;
 }

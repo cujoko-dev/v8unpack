@@ -22,6 +22,7 @@ at http://mozilla.org/MPL/2.0/.
 #include <fstream>
 
 #include <cstdint>
+#include <array>
 #include <vector>
 #include "filesystem_compat.h"
 #include <algorithm>
@@ -392,11 +393,14 @@ try_inflate(
 template<typename T>
 void full_copy(std::basic_istream<T> &in_file, std::basic_ostream<T> &out_file)
 {
-	std::copy(
-			std::istreambuf_iterator<T>(in_file),
-			std::istreambuf_iterator<T>(),
-			std::ostreambuf_iterator<T>(out_file)
-	);
+	std::array<T, 64 * 1024> buffer;
+	while (in_file) {
+		in_file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+		const auto count = in_file.gcount();
+		if (count > 0) {
+			out_file.write(buffer.data(), count);
+		}
+	}
 }
 
 } // namespace v8unpack

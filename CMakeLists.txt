@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(v8unpack VERSION 3.1.0 LANGUAGES CXX)
+project(v8unpack VERSION 3.2.0 LANGUAGES CXX)
 
 # Windows VERSIONINFO requires a fourth numeric component; public releases use
 # three-component Semantic Versioning.

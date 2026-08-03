@@ -1,0 +1,7 @@
+# Additional workspace directories for codex2 and agent2.
+# Paths may be absolute or relative to this file's directory.
+# Uncomment and edit the examples you need.
+add_dirs = [
+    # '../shared-project',
+    # 'D:\Notes\Work',
+]
