@@ -22,8 +22,10 @@ at http://mozilla.org/MPL/2.0/.
 #include <array>
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <cstring>
 #include <limits>
+#include <mutex>
 #include <thread>
 #include <unordered_set>
 
@@ -1230,6 +1232,109 @@ is_dot_file(const boost::filesystem::path &path)
 		|| path.filename().string() == "..";
 }
 
+class parallel_deflater_t
+{
+public:
+	parallel_deflater_t(const vector<boost::filesystem::path> &entries, bool enabled)
+		: entries(entries), states(entries.size(), not_scheduled), temp_files(entries.size())
+	{
+		if (!enabled) return;
+		for (size_t index = 0; index < entries.size(); ++index) {
+			const auto &entry = entries[index];
+			if (!boost::filesystem::is_directory(entry)
+				&& boost::filesystem::file_size(entry) >= parallel_threshold) {
+				tasks.push_back(index);
+				states[index] = pending;
+			}
+		}
+
+		const auto detected_workers = max(1u, thread::hardware_concurrency());
+		const auto worker_count = min<size_t>(tasks.size(), min<unsigned>(detected_workers, 8));
+		workers.reserve(worker_count);
+		for (size_t worker = 0; worker < worker_count; ++worker) {
+			workers.emplace_back([this] { work(); });
+		}
+	}
+
+	~parallel_deflater_t()
+	{
+		for (auto &worker : workers) worker.join();
+		for (const auto &path : temp_files) {
+			if (!path.empty()) {
+				std::error_code error;
+				boost::filesystem::remove(path, error);
+			}
+		}
+	}
+
+	bool scheduled(size_t index)
+	{
+		lock_guard<std::mutex> lock(state_mutex);
+		return states[index] != not_scheduled;
+	}
+
+	int wait(size_t index)
+	{
+		unique_lock<std::mutex> lock(state_mutex);
+		completed.wait(lock, [&] { return states[index] != pending; });
+		return states[index];
+	}
+
+	boost::filesystem::path &path(size_t index)
+	{
+		return temp_files[index];
+	}
+
+	void release(size_t index)
+	{
+		std::error_code error;
+		boost::filesystem::remove(temp_files[index], error);
+		temp_files[index].clear();
+	}
+
+private:
+	void work()
+	{
+		while (true) {
+			const auto task = next_task.fetch_add(1);
+			if (task >= tasks.size()) return;
+			const auto index = tasks[task];
+			const auto temp_path = boost::filesystem::temp_directory_path()
+				/ boost::filesystem::unique_path();
+			int result = V8UNPACK_OK;
+			try {
+				boost::filesystem::ifstream input(entries[index], ios_base::binary);
+				if (!input) {
+					result = V8UNPACK_SOURCE_DOES_NOT_EXIST;
+				} else if (Deflate(input, temp_path.string()) != 0) {
+					result = V8UNPACK_DEFLATE_ERROR;
+				}
+			} catch (...) {
+				result = V8UNPACK_ERROR;
+			}
+
+			{
+				lock_guard<std::mutex> lock(state_mutex);
+				temp_files[index] = temp_path;
+				states[index] = result;
+			}
+			completed.notify_all();
+		}
+	}
+
+	static constexpr uintmax_t parallel_threshold = 256 * 1024;
+	static constexpr int not_scheduled = 1;
+	static constexpr int pending = 2;
+	const vector<boost::filesystem::path> &entries;
+	vector<int> states;
+	vector<boost::filesystem::path> temp_files;
+	vector<size_t> tasks;
+	vector<thread> workers;
+	atomic<size_t> next_task{0};
+	std::mutex state_mutex;
+	condition_variable completed;
+};
+
 template<typename format>
 static int
 recursive_pack(const string &in_dirname, const string &out_filename, bool dont_deflate)
@@ -1257,6 +1362,7 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 		cout << "SaveFile. Error in creating file!" << endl;
 		return V8UNPACK_ERROR_CREATING_OUTPUT_FILE;
 	}
+	parallel_deflater_t parallel_deflater(entries, !dont_deflate);
 
 	file_out << format::placeholder;
 
@@ -1265,7 +1371,8 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 
 	uint32_t ElemNum = 0;
 
-	for (const auto &current_file : entries) {
+	for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
+		const auto &current_file = entries[entry_index];
 
 		string name = current_file.filename().string();
 
@@ -1292,12 +1399,21 @@ recursive_pack(const string &in_dirname, const string &out_filename, bool dont_d
 			pElem.Pack(!dont_deflate);
 			SaveBlockData<format>(file_out, pElem.data.data(), pElem.data.size());
 		} else {
-
-			auto DataSize = boost::filesystem::file_size(current_file);
-			boost::filesystem::ifstream file_in(current_file, ios_base::binary);
-			const auto save_result = dont_deflate
-				? SaveBlockData<format>(file_out, file_in, DataSize)
-				: SaveDeflatedBlockData<format>(file_out, file_in);
+			int save_result;
+			if (parallel_deflater.scheduled(entry_index)) {
+				save_result = parallel_deflater.wait(entry_index);
+				if (save_result == V8UNPACK_OK) {
+					save_result = SaveBlockData<format>(file_out,
+						parallel_deflater.path(entry_index));
+					parallel_deflater.release(entry_index);
+				}
+			} else {
+				const auto data_size = boost::filesystem::file_size(current_file);
+				boost::filesystem::ifstream file_in(current_file, ios_base::binary);
+				save_result = dont_deflate
+					? SaveBlockData<format>(file_out, file_in, data_size)
+					: SaveDeflatedBlockData<format>(file_out, file_in);
+			}
 			if (save_result != V8UNPACK_OK) return save_result;
 		}
 

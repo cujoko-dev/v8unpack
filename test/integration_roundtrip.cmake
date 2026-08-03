@@ -39,6 +39,8 @@ file(MAKE_DIRECTORY "${WORK_DIR}/input/nested/deeper")
 file(WRITE "${WORK_DIR}/input/root.txt" "v8unpack deterministic integration test\n")
 file(WRITE "${WORK_DIR}/input/nested/data.bin" "0123456789abcdef\n")
 file(WRITE "${WORK_DIR}/input/nested/deeper/empty.txt" "")
+string(REPEAT "parallel-build-payload\n" 16384 parallel_build_payload)
+file(WRITE "${WORK_DIR}/input/parallel.bin" "${parallel_build_payload}")
 
 run_checked("BUILD" "${PROGRAM}" -BUILD
     "${WORK_DIR}/input" "${WORK_DIR}/generated.cf")
