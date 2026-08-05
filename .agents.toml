@@ -1,4 +1,4 @@
-# Additional workspace directories for codex2 and agent2.
+# Additional workspace directories.
 # Paths may be absolute or relative to this file's directory.
 # Uncomment and edit the examples you need.
 add_dirs = [
