@@ -16,7 +16,7 @@ BEGIN
       VALUE "OriginalFilename", "v8unpack.exe"
       VALUE "ProductName", "v8unpack"
       VALUE "ProductVersion", "@PROJECT_VERSION@ (built by Cujoko)"
-      VALUE "Comments", "https://github.com/Cujoko/v8unpack"
+      VALUE "Comments", "https://github.com/cujoko/v8unpack"
     END
   END
   BLOCK "VarFileInfo"
