@@ -21,5 +21,3 @@
 *.bat                text eol=crlf
 *.cmd                text eol=crlf
 # gitattributes:end
-
-*.sh -crlf
