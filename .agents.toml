@@ -3,5 +3,5 @@
 # Uncomment and edit the examples you need.
 add_dirs = [
     # '../shared-project',
-    # 'D:\Notes\Work',
+    # '{notes}',
 ]
